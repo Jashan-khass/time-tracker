@@ -1,11 +1,24 @@
 async function call(path, method = "GET", body) {
-  const res = await fetch("/api" + path, {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let res;
+
+  try {
+    res = await fetch("/api" + path, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (error) {
+    console.error("Backend connection failed:", error);
+    throw new Error("Unable to connect to backend.");
+  }
+
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.detail || "Something went wrong");
+
+  if (!res.ok) {
+    console.error(`API Error ${res.status}:`, data);
+    throw new Error(data.detail || `API request failed (${res.status})`);
+  }
+
   return data;
 }
 

@@ -28,7 +28,7 @@ class Activity(Base):
     title = Column(String(120), nullable=False)
     category = Column(String(30), nullable=False, index=True)
     start_time = Column(DateTime, nullable=False, index=True)
-    end_time = Column(DateTime, nullable=True)  # None = timer is still running
+    end_time = Column(DateTime, nullable=True)  
     notes = Column(Text, default="")
     task_id = Column(Integer, nullable=True, index=True)
 
@@ -49,7 +49,7 @@ class Goal(Base):
 
 
 Base.metadata.create_all(engine)
-# Add task_id to an existing activities table (no-op if it already exists)
+
 with engine.begin() as _c:
     _c.execute(text("ALTER TABLE activities ADD COLUMN IF NOT EXISTS task_id INTEGER"))
 
@@ -115,8 +115,6 @@ def day_range(d: datetime):
     s = d.replace(hour=0, minute=0, second=0, microsecond=0)
     return s, s + timedelta(days=1)
 
-
-# ---------- Activity CRUD ----------
 @app.get("/api/meta")
 def meta():
     return {"categories": CATEGORIES, "productive": sorted(PRODUCTIVE)}
@@ -170,7 +168,7 @@ def delete_activity(aid: int, db: Session = Depends(get_db)):
     return {"deleted": aid}
 
 
-# ---------- Live timer ----------
+
 @app.post("/api/timer/start")
 def start_timer(body: StartIn, db: Session = Depends(get_db)):
     validate(body.category)
@@ -197,7 +195,7 @@ def stop_timer(db: Session = Depends(get_db)):
     return to_dict(a)
 
 
-# ---------- Tasks ----------
+
 @app.get("/api/tasks")
 def list_tasks(db: Session = Depends(get_db)):
     spent = defaultdict(float)
@@ -236,7 +234,7 @@ def delete_task(tid: int, db: Session = Depends(get_db)):
     return {"deleted": tid}
 
 
-# ---------- Goals ----------
+
 @app.get("/api/goals")
 def get_goals(db: Session = Depends(get_db)):
     return {g.category: g.daily_minutes for g in db.query(Goal).all()}
@@ -258,7 +256,7 @@ def set_goal(category: str, body: GoalIn, db: Session = Depends(get_db)):
     return {"category": category, "daily_minutes": body.daily_minutes}
 
 
-# ---------- Reports ----------
+
 @app.get("/api/reports/daily")
 def daily_report(date: Optional[str] = None, db: Session = Depends(get_db)):
     d = datetime.fromisoformat(date) if date else datetime.now()

@@ -14,57 +14,56 @@ export function DataProvider({ children }) {
   const [tasks, setTasks] = useState([]);
   const [error, setError] = useState("");
 
-  const refresh = useCallback(async () => {
-    try {
-      const d = todayStr();
-      console.log("STATS RESPONSE:", s);
-console.log("DAILY RESPONSE:", dr);
-console.log("WEEKLY RESPONSE:", w);
-      const [a, dr, w, s, t] = await Promise.all([api.activities(d), api.daily(d), api.weekly(), api.stats(), api.tasks()]);
-      setActs(
-  Array.isArray(a) ? a :
-  Array.isArray(a?.items) ? a.items :
-  Array.isArray(a?.activities) ? a.activities : []
-);
+  
+const refresh = useCallback(async () => {
+  try {
+    const d = todayStr();
 
-setDaily(
-  dr && typeof dr === "object"
-    ? dr
-    : null
-);
+    const [a, dr, w, s, t] = await Promise.all([
+      api.activities(d),
+      api.daily(d),
+      api.weekly(),
+      api.stats(),
+      api.tasks(),
+    ]);
 
-setWeekly(
-  Array.isArray(w) ? w :
-  Array.isArray(w?.items) ? w.items : []
-);
+    console.log("ACTIVITIES RESPONSE:", a);
+    console.log("STATS RESPONSE:", s);
+    console.log("DAILY RESPONSE:", dr);
+    console.log("WEEKLY RESPONSE:", w);
+    console.log("TASKS RESPONSE:", t);
 
-setStats(s);
-
-setTasks(
-  Array.isArray(t) ? t :
-  Array.isArray(t?.items) ? t.items :
-  Array.isArray(t?.tasks) ? t.tasks : []
-);
-
-setError("");
-    } catch (e) {
-      setError("Could not reach the backend. Check that FastAPI is running on port 8000.");
-    }
-  }, []);
-
-  useEffect(() => {
-    api.meta()
-  .then((m) => {
-    setCategories(
-      Array.isArray(m?.categories) ? m.categories : Object.keys(COLORS)
+    setActs(
+      Array.isArray(a) ? a :
+      Array.isArray(a?.items) ? a.items :
+      Array.isArray(a?.activities) ? a.activities : []
     );
-  })
-  .catch((err) => {
-    console.error("Failed to load categories:", err);
-    setCategories(Object.keys(COLORS));
-  });
-    refresh();
-  }, [refresh]);
+
+    setDaily(dr && typeof dr === "object" ? dr : null);
+
+    setWeekly(
+      Array.isArray(w) ? w :
+      Array.isArray(w?.items) ? w.items : []
+    );
+
+    setStats(s);
+
+    setTasks(
+      Array.isArray(t) ? t :
+      Array.isArray(t?.items) ? t.items :
+      Array.isArray(t?.tasks) ? t.tasks : []
+    );
+
+    setError("");
+  } catch (e) {
+    console.error("Dashboard refresh failed:", e);
+    setError(e.message || "Could not reach the backend.");
+  }
+}, []);
+
+useEffect(() => {
+  refresh();
+}, [refresh]);
 
   const run = (fn) => async (...args) => {
     try { await fn(...args); setError(""); await refresh(); } catch (e) { setError(e.message); }
