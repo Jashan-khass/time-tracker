@@ -3,13 +3,19 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, create_engine, text
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from dotenv import load_dotenv
 load_dotenv()
+
+import jwt
+from datetime import datetime, timedelta, timezone
+from pwdlib import PasswordHash
+from sqlalchemy import Column, Integer, String
+from pydantic import BaseModel, EmailStr, Field
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/timetracker"
@@ -46,6 +52,51 @@ class Goal(Base):
     __tablename__ = "goals"
     category = Column(String(30), primary_key=True)
     daily_minutes = Column(Integer, nullable=False)
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+
+
+class RegisterIn(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+
+
+class LoginIn(BaseModel):
+    email: EmailStr
+    password: str
+
+
+password_hash = PasswordHash.recommended()
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY is missing from backend/.env")
+
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 1440
+
+
+def make_token(user_id: int):
+    expires = datetime.now(timezone.utc) + timedelta(
+        minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+    )
+
+    return jwt.encode(
+        {
+            "sub": str(user_id),
+            "exp": expires
+        },
+        SECRET_KEY,
+        algorithm=ALGORITHM
+    )
 
 
 Base.metadata.create_all(engine)
@@ -386,3 +437,56 @@ def heatmap(days: int = 112, db: Session = Depends(get_db)):
         series.append({"date": d, "productive": round(v["productive"], 1), "total": round(v["total"], 1)})
     return {"days": series, "current_streak": cur, "best_streak": best,
             "active_days": sum(1 for s in series if s["productive"] >= ACTIVE_MINUTES)}
+
+
+@app.post("/api/auth/register")
+def register(body: RegisterIn, db: Session = Depends(get_db)):
+    email = body.email.lower()
+
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(409, "Email already registered")
+
+    user = User(
+        name=body.name.strip(),
+        email=email,
+        hashed_password=password_hash.hash(body.password)
+    )
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    return {"message": "Account created successfully"}
+
+
+@app.post("/api/auth/login")
+def login(body: LoginIn, db: Session = Depends(get_db)):
+    user = db.query(User).filter(
+        User.email == body.email.lower()
+    ).first()
+
+    if not user or not password_hash.verify(
+        body.password, user.hashed_password
+    ):
+        raise HTTPException(401, "Incorrect email or password")
+
+    return {
+        "access_token": make_token(user.id),
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email
+        }
+    }
+
+
+@app.get("/api/auth/me")
+def current_profile(request: Request, db: Session = Depends(get_db)):
+    user = db.get(User, request.state.user_id)
+
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email
+    }

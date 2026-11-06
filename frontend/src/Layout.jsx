@@ -3,6 +3,8 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useData } from "./DataContext";
 import { COLORS } from "./utils";
 import { ThemeToggle } from "./features";
+import { useAuth } from "./AuthContext";
+import { useNavigate } from "react-router-dom";
 
 const MAIN = [
   ["/", "Dashboard", "Overview of today"],
@@ -21,6 +23,13 @@ export default function Layout() {
   const current = MAIN.find(([p]) => p === pathname);
   const title = catName || (current && current[1]) || "Time Tracker";
   const subtitle = catName ? `Everything you did in ${catName}` : current && current[2];
+  const { user, logout } = useAuth();
+const navigate = useNavigate();
+
+function handleLogout() {
+  logout();
+  navigate("/login", { replace: true });
+}
 
   return (
     <div className="shell">
@@ -43,6 +52,16 @@ export default function Layout() {
           <div><h1>{title}</h1>{subtitle && <p className="muted">{subtitle}</p>}</div>
           <div className="top-actions">
             <span>{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</span>
+            <span className="auth-user">
+  {user?.name}
+</span>
+
+<button
+  className="logout-button"
+  onClick={handleLogout}
+>
+  Logout
+</button>
             <ThemeToggle />
           </div>
         </div>
