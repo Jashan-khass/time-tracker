@@ -6,7 +6,12 @@ import React, {
   useState
 } from "react";
 
-import { api, saveToken, getToken, clearToken } from "./api";
+import {
+  api,
+  saveToken,
+  getToken,
+  clearToken
+} from "./api";
 
 const AuthContext = createContext(null);
 
@@ -58,6 +63,12 @@ export function AuthProvider({ children }) {
     await api.register({ name, email, password });
   }
 
+  async function updateProfile(profile) {
+    const updated = await api.updateProfile(profile);
+    setUser(updated);
+    return updated;
+  }
+
   function logout() {
     clearToken();
     setUser(null);
@@ -65,7 +76,14 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, register, logout }}
+      value={{
+        user,
+        loading,
+        login,
+        register,
+        updateProfile,
+        logout
+      }}
     >
       {children}
     </AuthContext.Provider>

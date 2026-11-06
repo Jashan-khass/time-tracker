@@ -19,6 +19,7 @@ import Dashboard from "./pages/Dashboard";
 import GoalsPage from "./pages/GoalsPage";
 import TasksPage from "./pages/TasksPage";
 import FocusPage from "./pages/FocusPage";
+import ProfilePage from "./pages/ProfilePage";
 
 function ProtectedRoute() {
   const { user, loading } = useAuth();
@@ -74,6 +75,7 @@ export default function App() {
             <Route path="activities" element={<ActivitiesPage />} />
             <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="goals" element={<GoalsPage />} />
+            <Route path="profile" element={<ProfilePage />} />
             <Route path="activity/:slug" element={<CategoryRoute />} />
           </Route>
         </Route>

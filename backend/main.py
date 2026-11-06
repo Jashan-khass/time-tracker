@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 from pwdlib import PasswordHash
 from sqlalchemy import Column, Integer, String
 from pydantic import BaseModel, EmailStr, Field
+from fastapi.security import OAuth2PasswordBearer
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/timetracker"
@@ -114,6 +115,39 @@ def get_db():
         yield db
     finally:
         db.close()
+
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="/api/auth/login"
+)
+
+
+def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    unauthorized = HTTPException(
+        status_code=401,
+        detail="Invalid or expired login session"
+    )
+
+    try:
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM]
+        )
+
+        user_id = int(payload.get("sub"))
+
+    except (jwt.InvalidTokenError, TypeError, ValueError):
+        raise unauthorized
+
+    user = db.get(User, user_id)
+
+    if not user:
+        raise unauthorized
+
+    return user
 
 
 class ActivityIn(BaseModel):
@@ -484,6 +518,68 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
 @app.get("/api/auth/me")
 def current_profile(request: Request, db: Session = Depends(get_db)):
     user = db.get(User, request.state.user_id)
+
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email
+    }
+
+
+class ProfileUpdateIn(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+    email: EmailStr
+
+
+def profile_dict(user):
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email
+    }
+
+
+class ProfileUpdateIn(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+    email: EmailStr
+
+
+@app.get("/api/auth/me")
+def current_profile(
+    user: User = Depends(get_current_user)
+):
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email
+    }
+
+
+@app.put("/api/auth/me")
+def update_profile(
+    body: ProfileUpdateIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    name = body.name.strip()
+    email = body.email.lower().strip()
+
+    existing = db.query(User).filter(
+        User.email == email,
+        User.id != user.id
+    ).first()
+
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail="Email already in use"
+        )
+
+    user.name = name
+    user.email = email
+
+    db.commit()
+    db.refresh(user)
 
     return {
         "id": user.id,

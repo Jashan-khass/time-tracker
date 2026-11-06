@@ -49,6 +49,9 @@ export const api = {
   login: (body) => call("/auth/login", "POST", body),
   me: () => call("/auth/me"),
 
+  // Update user profile
+  updateProfile: (body) => call("/auth/me", "PUT", body),
+
   meta: () => call("/meta"),
   allActivities: () => call("/activities"),
   heatmap: () => call("/reports/heatmap"),
