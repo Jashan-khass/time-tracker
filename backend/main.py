@@ -11,6 +11,15 @@ from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from dotenv import load_dotenv
 load_dotenv()
 
+app = FastAPI(title="Time Tracker API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
+
 import jwt
 from datetime import datetime, timedelta, timezone
 from pwdlib import PasswordHash
@@ -42,9 +51,13 @@ class Activity(Base):
 
 class Task(Base):
     __tablename__ = "tasks"
+
     id = Column(Integer, primary_key=True)
     title = Column(String(120), nullable=False)
     category = Column(String(30), nullable=False)
+    description = Column(Text, default="")
+    priority = Column(String(20), default="Medium", nullable=False)
+    due_date = Column(DateTime, nullable=True)
     done = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.now)
 
@@ -100,13 +113,28 @@ def make_token(user_id: int):
     )
 
 
+# Create database tables
 Base.metadata.create_all(engine)
 
-with engine.begin() as _c:
-    _c.execute(text("ALTER TABLE activities ADD COLUMN IF NOT EXISTS task_id INTEGER"))
+# Add new columns to existing tasks table
+with engine.begin() as conn:
+    conn.execute(text(
+        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS description TEXT DEFAULT ''"
+    ))
 
-app = FastAPI(title="Time Tracker API")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+    conn.execute(text(
+        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'Medium'"
+    ))
+
+    conn.execute(text(
+        "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS due_date TIMESTAMP NULL"
+    ))
+
+# Add task_id to existing activities table
+with engine.begin() as conn:
+    conn.execute(text(
+        "ALTER TABLE activities ADD COLUMN IF NOT EXISTS task_id INTEGER"
+    ))
 
 
 def get_db():
@@ -165,8 +193,11 @@ class StartIn(BaseModel):
 
 
 class TaskIn(BaseModel):
-    title: str
+    title: str = Field(min_length=1, max_length=120)
     category: str
+    description: str = ""
+    priority: str = "Medium"
+    due_date: Optional[datetime] = None
 
 
 class GoalIn(BaseModel):
@@ -257,18 +288,42 @@ def delete_activity(aid: int, db: Session = Depends(get_db)):
 @app.post("/api/timer/start")
 def start_timer(body: StartIn, db: Session = Depends(get_db)):
     validate(body.category)
-    if db.query(Activity).filter(Activity.end_time.is_(None)).first():
+
+    if db.query(Activity).filter(
+        Activity.end_time.is_(None)
+    ).first():
         raise HTTPException(400, "Stop the running timer first")
-    title, category = body.title.strip(), body.category
+
+    title = body.title.strip()
+    category = body.category
+
     if body.task_id:
         t = db.get(Task, body.task_id)
-        if not t:
-            raise HTTPException(404, "Task not found")
-        title, category = t.title, t.category
-    a = Activity(title=title, category=category, start_time=datetime.now(), task_id=body.task_id)
-    db.add(a); db.commit(); db.refresh(a)
-    return to_dict(a)
 
+        if not t:
+            raise HTTPException(404, "Work not found")
+
+        if t.done:
+            raise HTTPException(
+                400,
+                "Completed work cannot be started"
+            )
+
+        title = t.title
+        category = t.category
+
+    a = Activity(
+        title=title,
+        category=category,
+        start_time=datetime.now(),
+        task_id=body.task_id
+    )
+
+    db.add(a)
+    db.commit()
+    db.refresh(a)
+
+    return to_dict(a)
 
 @app.post("/api/timer/stop")
 def stop_timer(db: Session = Depends(get_db)):
@@ -284,19 +339,80 @@ def stop_timer(db: Session = Depends(get_db)):
 @app.get("/api/tasks")
 def list_tasks(db: Session = Depends(get_db)):
     spent = defaultdict(float)
-    for a in db.query(Activity).filter(Activity.task_id.isnot(None)).all():
+
+    for a in db.query(Activity).filter(
+        Activity.task_id.isnot(None)
+    ).all():
         spent[a.task_id] += minutes(a)
-    tasks = db.query(Task).order_by(Task.done, Task.created_at.desc()).all()
-    return [{"id": t.id, "title": t.title, "category": t.category, "done": t.done,
-             "spent_minutes": round(spent.get(t.id, 0), 1)} for t in tasks]
+
+    tasks = db.query(Task).order_by(
+        Task.done,
+        Task.created_at.desc()
+    ).all()
+
+    return [
+        {
+            "id": t.id,
+            "title": t.title,
+            "category": t.category,
+            "description": t.description or "",
+            "priority": t.priority or "Medium",
+            "due_date": t.due_date.isoformat() if t.due_date else None,
+            "done": t.done,
+            "spent_minutes": round(spent.get(t.id, 0), 1)
+        }
+        for t in tasks
+    ]
 
 
 @app.post("/api/tasks")
 def create_task(body: TaskIn, db: Session = Depends(get_db)):
     validate(body.category)
-    t = Task(title=body.title.strip(), category=body.category)
-    db.add(t); db.commit(); db.refresh(t)
-    return {"id": t.id}
+
+    if body.priority not in ["Low", "Medium", "High"]:
+        raise HTTPException(400, "Invalid priority")
+
+    task = Task(
+        title=body.title.strip(),
+        category=body.category,
+        description=body.description,
+        priority=body.priority,
+        due_date=naive(body.due_date)
+    )
+
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+
+    return {"id": task.id, "message": "Work added successfully"}
+
+
+@app.put("/api/tasks/{tid}")
+def update_task(
+    tid: int,
+    body: TaskIn,
+    db: Session = Depends(get_db)
+):
+    validate(body.category)
+
+    if body.priority not in ["Low", "Medium", "High"]:
+        raise HTTPException(400, "Invalid priority")
+
+    task = db.get(Task, tid)
+
+    if not task:
+        raise HTTPException(404, "Work not found")
+
+    task.title = body.title.strip()
+    task.category = body.category
+    task.description = body.description
+    task.priority = body.priority
+    task.due_date = naive(body.due_date)
+
+    db.commit()
+    db.refresh(task)
+
+    return {"id": task.id, "message": "Work updated successfully"}
 
 
 @app.patch("/api/tasks/{tid}/toggle")

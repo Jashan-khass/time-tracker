@@ -66,17 +66,54 @@ useEffect(() => {
 }, [refresh]);
 
   const run = (fn) => async (...args) => {
-    try { await fn(...args); setError(""); await refresh(); } catch (e) { setError(e.message); }
-  };
+  try {
+    await fn(...args);
+    setError("");
+    await refresh();
+    return true;
+  } catch (e) {
+    setError(e.message);
+    return false;
+  }
+};
 
-  const value = {
-    categories, acts, daily, weekly, stats, tasks, error,
-    running: acts.find((a) => !a.end_time),
-    startTimer: run(api.startTimer), stopTimer: run(api.stopTimer),
-    addActivity: run(api.addActivity), deleteActivity: run(api.deleteActivity),
-    addTask: run(api.addTask), toggleTask: run(api.toggleTask), deleteTask: run(api.deleteTask),
-    setGoal: run(api.setGoal),
-    startTask: (t) => run(api.startTimer)({ title: t.title, category: t.category, task_id: t.id }),
-  };
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+const value = {
+  categories,
+  acts,
+  daily,
+  weekly,
+  stats,
+  tasks,
+  error,
+
+  running: acts.find((a) => !a.end_time),
+
+  // Timer
+  startTimer: run(api.startTimer),
+  stopTimer: run(api.stopTimer),
+
+  // Activities
+  addActivity: run(api.addActivity),
+  deleteActivity: run(api.deleteActivity),
+
+  // Tasks
+  addTask: run(api.addTask),
+  updateTask: run(api.updateTask),
+  toggleTask: run(api.toggleTask),
+  deleteTask: run(api.deleteTask),
+
+  // Goals
+  setGoal: run(api.setGoal),
+
+  // Start task timer
+  startTask: (t) =>
+    run(api.startTimer)({
+      title: t.title,
+      category: t.category,
+      task_id: t.id,
+    }),
+};
+
+return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+
 }

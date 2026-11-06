@@ -15,6 +15,7 @@ import { useAuth } from "./AuthContext";
 const MAIN = [
   ["/", "Dashboard", "Overview of today"],
   ["/tasks", "Tasks", "Plan and track your tasks"],
+  ["/work", "Work Management", "Manage and track all your work"],
   ["/focus", "Focus timer", "Pomodoro sessions that log themselves"],
   ["/activities", "All activities", "Log and review activities"],
   ["/analytics", "Analytics", "Weekly charts and trends"],
