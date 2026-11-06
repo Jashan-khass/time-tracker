@@ -24,6 +24,8 @@ async function call(path, method = "GET", body) {
 
 export const api = {
   meta: () => call("/meta"),
+  allActivities: () => call("/activities"),
+  heatmap: () => call("/reports/heatmap"),
   activities: (date) => call(`/activities?date=${date}`),
   categoryActivities: (category, days = 7) => call(`/activities?category=${category}&days=${days}`),
   addActivity: (b) => call("/activities", "POST", b),

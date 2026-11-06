@@ -347,3 +347,42 @@ def stats(db: Session = Depends(get_db)):
         "daily_avg_minutes": round(this_p / 7, 1),
         "trend_percent": trend
     }
+
+# Consistency: heatmap + streaks
+ACTIVE_MINUTES = 15  # a day counts as "active" after this many productive minutes
+
+
+@app.get("/api/reports/heatmap")
+def heatmap(days: int = 112, db: Session = Depends(get_db)):
+    days = max(7, min(days, 365))
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    start = today - timedelta(days=364)
+    per_day = {}
+    for a in db.query(Activity).filter(Activity.start_time >= start).all():
+        d = per_day.setdefault(a.start_time.date().isoformat(), {"productive": 0.0, "total": 0.0})
+        m = minutes(a)
+        d["total"] += m
+        if a.category in PRODUCTIVE:
+            d["productive"] += m
+
+    def active(day):
+        return per_day.get(day.date().isoformat(), {"productive": 0})["productive"] >= ACTIVE_MINUTES
+
+    best = run = 0
+    for i in range(365):
+        run = run + 1 if active(start + timedelta(days=i)) else 0
+        best = max(best, run)
+    cur, day = 0, today
+    if not active(day):
+        day -= timedelta(days=1)  # today is still in progress, so yesterday keeps the streak alive
+    while active(day):
+        cur += 1
+        day -= timedelta(days=1)
+
+    series = []
+    for i in range(days - 1, -1, -1):
+        d = (today - timedelta(days=i)).date().isoformat()
+        v = per_day.get(d, {"productive": 0.0, "total": 0.0})
+        series.append({"date": d, "productive": round(v["productive"], 1), "total": round(v["total"], 1)})
+    return {"days": series, "current_streak": cur, "best_streak": best,
+            "active_days": sum(1 for s in series if s["productive"] >= ACTIVE_MINUTES)}

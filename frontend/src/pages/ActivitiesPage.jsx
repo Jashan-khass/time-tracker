@@ -1,6 +1,7 @@
 import React from "react";
 import { ManualForm } from "../components";
 import { useData } from "../DataContext";
+import { ExportButton } from "../features";
 import { COLORS, fmt } from "../utils";
 
 export default function ActivitiesPage() {
@@ -9,7 +10,7 @@ export default function ActivitiesPage() {
     <div className="grid">
       <section className="panel"><h2>Add activity</h2><ManualForm categories={categories} onAdd={addActivity} /></section>
       <section className="panel">
-        <h2>Today's activities</h2>
+        <div className="panel-head"><h2>Today's activities</h2><ExportButton /></div>
         {acts.length === 0 && <p className="muted">No activities yet. Start the timer or add one manually.</p>}
         <ul className="list">
           {acts.map((a) => (

@@ -1,7 +1,7 @@
-
 import React from "react";
 import { DailyReport, Stats, Timer } from "../components";
 import { useData } from "../DataContext";
+import { Consistency } from "../features";
 
 export default function Dashboard() {
   const { running, categories, startTimer, stopTimer, stats, daily } = useData();
@@ -21,6 +21,8 @@ export default function Dashboard() {
         <h2>Today's report</h2>
         <DailyReport daily={daily} />
       </section>
+
+      <Consistency />
     </>
   );
 }

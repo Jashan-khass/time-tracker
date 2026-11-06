@@ -2,10 +2,12 @@ import React from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useData } from "./DataContext";
 import { COLORS } from "./utils";
+import { ThemeToggle } from "./features";
 
 const MAIN = [
   ["/", "Dashboard", "Overview of today"],
   ["/tasks", "Tasks", "Plan and track your tasks"],
+  ["/focus", "Focus timer", "Pomodoro sessions that log themselves"],
   ["/activities", "All activities", "Log and review activities"],
   ["/analytics", "Analytics", "Weekly charts and trends"],
   ["/goals", "Goals", "Daily goals"],
@@ -39,7 +41,10 @@ export default function Layout() {
       <main className="main">
         <div className="topbar">
           <div><h1>{title}</h1>{subtitle && <p className="muted">{subtitle}</p>}</div>
-          <span className="muted">{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</span>
+          <div className="top-actions">
+            <span>{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</span>
+            <ThemeToggle />
+          </div>
         </div>
         {error && <div className="error">{error}</div>}
         <Outlet />
