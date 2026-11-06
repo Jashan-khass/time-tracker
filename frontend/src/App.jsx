@@ -21,6 +21,7 @@ import TasksPage from "./pages/TasksPage";
 import FocusPage from "./pages/FocusPage";
 import ProfilePage from "./pages/ProfilePage";
 import WorkManagementPage from "./pages/WorkManagementPage";
+import WorkEditPage from "./pages/WorkEditPage";
 
 function ProtectedRoute() {
   const { user, loading } = useAuth();
@@ -73,6 +74,7 @@ export default function App() {
             <Route index element={<Dashboard />} />
             <Route path="tasks" element={<TasksPage />} />
             <Route path="work" element={<WorkManagementPage />}/>
+            <Route path="work/:workId/edit" element={<WorkEditPage />}/>
             <Route path="focus" element={<FocusPage />} />
             <Route path="activities" element={<ActivitiesPage />} />
             <Route path="analytics" element={<AnalyticsPage />} />

@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from "react";
+
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useData } from "../DataContext";
 import { fmt } from "../utils";
 
@@ -11,20 +13,18 @@ const emptyForm = {
 };
 
 function WorkForm({
-  initial,
   categories,
   onSave,
   onCancel,
   saving
 }) {
-  const [form, setForm] = useState(initial || emptyForm);
-
-  useEffect(() => {
-    setForm(initial || emptyForm);
-  }, [initial]);
+  const [form, setForm] = useState(emptyForm);
 
   function change(key, value) {
-    setForm((old) => ({ ...old, [key]: value }));
+    setForm((old) => ({
+      ...old,
+      [key]: value
+    }));
   }
 
   function submit(e) {
@@ -33,8 +33,6 @@ function WorkForm({
     onSave({
       ...form,
       title: form.title.trim(),
-
-      // Preserve local date/time instead of converting to UTC
       due_date: form.due_date
         ? form.due_date + ":00"
         : null
@@ -47,7 +45,9 @@ function WorkForm({
         Work name *
         <input
           value={form.title}
-          onChange={(e) => change("title", e.target.value)}
+          onChange={(e) =>
+            change("title", e.target.value)
+          }
           placeholder="Enter work name"
           maxLength={120}
           required
@@ -58,7 +58,9 @@ function WorkForm({
         Description
         <textarea
           value={form.description}
-          onChange={(e) => change("description", e.target.value)}
+          onChange={(e) =>
+            change("description", e.target.value)
+          }
           placeholder="Describe this work"
           rows={3}
         />
@@ -69,7 +71,9 @@ function WorkForm({
           Category
           <select
             value={form.category}
-            onChange={(e) => change("category", e.target.value)}
+            onChange={(e) =>
+              change("category", e.target.value)
+            }
           >
             {categories.map((c) => (
               <option key={c} value={c}>
@@ -83,7 +87,9 @@ function WorkForm({
           Priority
           <select
             value={form.priority}
-            onChange={(e) => change("priority", e.target.value)}
+            onChange={(e) =>
+              change("priority", e.target.value)
+            }
           >
             <option value="Low">Low</option>
             <option value="Medium">Medium</option>
@@ -97,7 +103,9 @@ function WorkForm({
         <input
           type="datetime-local"
           value={form.due_date}
-          onChange={(e) => change("due_date", e.target.value)}
+          onChange={(e) =>
+            change("due_date", e.target.value)
+          }
         />
       </label>
 
@@ -109,63 +117,53 @@ function WorkForm({
           {saving ? "Saving..." : "Save Work"}
         </button>
 
-        {onCancel && (
-          <button
-            type="button"
-            className="ghost"
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-        )}
+        <button
+          type="button"
+          className="ghost"
+          onClick={onCancel}
+        >
+          Cancel
+        </button>
       </div>
     </form>
   );
 }
 
 export default function WorkManagementPage() {
+  const navigate = useNavigate();
+
   const {
     tasks,
     categories,
     running,
     addTask,
-    updateTask,
     deleteTask,
     toggleTask,
     startTask,
-    stopTimer,
-    refresh
+    stopTimer
   } = useData();
 
-  const [editing, setEditing] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState("All");
   const [message, setMessage] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function saveWork(data) {
     setSaving(true);
     setMessage("");
 
     try {
-      const success = editing
-        ? await updateTask(editing.id, data)
-        : await addTask(data);
+      const success = await addTask(data);
 
-      if (!success) return;
-
-      setMessage(
-        editing
-          ? "Work updated successfully."
-          : "New work added successfully."
-      );
-
-      setEditing(null);
-      setShowForm(false);
-
-      if (refresh) {
-        await refresh();
+      if (!success) {
+        setMessage("Unable to add work. Please try again.");
+        return;
       }
+
+      setMessage("New work added successfully.");
+      setShowForm(false);
     } catch (error) {
       setMessage(error.message || "Unable to save work.");
     } finally {
@@ -192,19 +190,34 @@ export default function WorkManagementPage() {
     await toggleTask(task.id);
   }
 
-  async function removeWork(task) {
-    if (!window.confirm(`Delete "${task.title}"?`)) return;
+function removeWork(task) {
+  setDeleteTarget(task);
+}
 
-    if (
-      running &&
-      Number(running.task_id) === Number(task.id)
-    ) {
-      setMessage("Stop the running work before deleting it.");
-      return;
-    }
+async function confirmDelete() {
+  if (!deleteTarget) return;
 
-    await deleteTask(task.id);
+  if (
+    running &&
+    Number(running.task_id) === Number(deleteTarget.id)
+  ) {
+    setMessage("Stop the running work before deleting it.");
+    setDeleteTarget(null);
+    return;
   }
+
+  setDeleting(true);
+
+  try {
+    await deleteTask(deleteTarget.id);
+    setDeleteTarget(null);
+    setMessage("Work deleted successfully.");
+  } catch (error) {
+    setMessage(error.message || "Unable to delete work.");
+  } finally {
+    setDeleting(false);
+  }
+}
 
   const visibleTasks = tasks.filter((task) => {
     if (filter === "Pending") return !task.done;
@@ -214,6 +227,8 @@ export default function WorkManagementPage() {
 
   return (
     <div className="work-management">
+
+      {/* Work Header */}
       <section className="panel work-header">
         <div>
           <h2>Work Management</h2>
@@ -224,7 +239,7 @@ export default function WorkManagementPage() {
 
         <button
           onClick={() => {
-            setEditing(null);
+            setMessage("");
             setShowForm((value) => !value);
           }}
         >
@@ -236,47 +251,44 @@ export default function WorkManagementPage() {
         <p className="work-message">{message}</p>
       )}
 
+      {/* Add Work Form */}
       {showForm && (
         <section className="panel">
-          <h2>{editing ? "Update Work" : "Add New Work"}</h2>
+          <h2>Add New Work</h2>
 
           <WorkForm
-            initial={
-              editing
-                ? {
-                    ...editing,
-                    due_date: editing.due_date
-                      ? editing.due_date.slice(0, 16)
-                      : ""
-                  }
-                : emptyForm
-            }
             categories={categories}
             onSave={saveWork}
-            onCancel={() => {
-              setShowForm(false);
-              setEditing(null);
-            }}
+            onCancel={() => setShowForm(false)}
             saving={saving}
           />
         </section>
       )}
 
+      {/* Currently Running Work */}
       {running && (
         <section className="panel active-work-card">
           <div>
-            <span className="live">Currently running</span>
+            <span className="live">
+              Currently running
+            </span>
+
             <h2>{running.title}</h2>
             <p>{running.category}</p>
           </div>
 
-          <button className="stop" onClick={pauseWork}>
+          <button
+            className="stop"
+            onClick={pauseWork}
+          >
             Pause Work
           </button>
         </section>
       )}
 
+      {/* All Work List */}
       <section className="panel">
+
         <div className="work-list-heading">
           <h2>All Work ({tasks.length})</h2>
 
@@ -296,14 +308,19 @@ export default function WorkManagementPage() {
           </p>
         ) : (
           <div className="work-list">
+
             {visibleTasks.map((task) => {
               const isRunning =
                 running &&
                 Number(running.task_id) === Number(task.id);
 
               return (
-                <article className="work-item" key={task.id}>
+                <article
+                  className="work-item"
+                  key={task.id}
+                >
                   <div className="work-item-main">
+
                     <div className="work-item-title">
                       <input
                         type="checkbox"
@@ -312,7 +329,11 @@ export default function WorkManagementPage() {
                       />
 
                       <div>
-                        <h3 className={task.done ? "done" : ""}>
+                        <h3
+                          className={
+                            task.done ? "done" : ""
+                          }
+                        >
                           {task.title}
                         </h3>
 
@@ -347,10 +368,14 @@ export default function WorkManagementPage() {
                     </div>
                   </div>
 
+                  {/* Work Actions */}
                   <div className="work-actions">
+
                     {!task.done && (
                       isRunning ? (
-                        <span className="live">Running</span>
+                        <span className="live">
+                          Running
+                        </span>
                       ) : (
                         <button
                           className="ghost"
@@ -362,12 +387,12 @@ export default function WorkManagementPage() {
                       )
                     )}
 
+                    {/* Navigate to separate Edit page */}
                     <button
                       className="ghost"
-                      onClick={() => {
-                        setEditing(task);
-                        setShowForm(true);
-                      }}
+                      onClick={() =>
+                        navigate(`/work/${task.id}/edit`)
+                      }
                     >
                       Edit
                     </button>
@@ -378,7 +403,39 @@ export default function WorkManagementPage() {
                     >
                       Delete
                     </button>
+
                   </div>
+                  {deleteTarget && (
+                    <div className="delete-modal-overlay">
+                        <div className="delete-modal">
+                            <div className="delete-modal-icon">
+                                <span>!</span>
+                                </div>
+                                <h2>Delete Work?</h2>
+                                <p>
+                                    Are you sure you want to delete
+                                    <strong> "{deleteTarget.title}" </strong>?
+                                    This action cannot be undone.
+                                    </p>
+                                <div className="delete-modal-actions">
+                                    <button
+                                    className="ghost"
+                                    onClick={() => setDeleteTarget(null)}
+                                    disabled={deleting}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                    className="delete-confirm-btn"
+                                    onClick={confirmDelete}
+                                    disabled={deleting}
+                                    >
+                                        {deleting ? "Deleting..." : "Delete"}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </article>
               );
             })}

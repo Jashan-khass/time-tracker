@@ -85,6 +85,7 @@ const value = {
   stats,
   tasks,
   error,
+  refresh,
 
   running: acts.find((a) => !a.end_time),
 
