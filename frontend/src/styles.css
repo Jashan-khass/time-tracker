@@ -63,12 +63,31 @@ input:focus-visible, select:focus-visible {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.18);
 }
+/* Checkbox styling */
 input[type="checkbox"] {
-  width: 18px; height: 18px; padding: 0;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  padding: 0;
+  margin: 0;
   accent-color: var(--accent);
-  cursor: pointer; flex: none;
+  cursor: pointer;
+  flex: 0 0 auto;
+  vertical-align: middle;
 }
-input[type="number"] { -moz-appearance: textfield; }
+
+/* Number input styling - remove spinner buttons */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Chrome, Edge, Safari */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 
 button {
   height: 40px;
